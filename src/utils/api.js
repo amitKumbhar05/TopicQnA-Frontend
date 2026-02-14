@@ -2,7 +2,7 @@ import axios from 'axios';
 import { auth } from '../firebase';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: 'https://topicqna-backend.onrender.com', 
 });
 
 api.interceptors.request.use(async (config) => {

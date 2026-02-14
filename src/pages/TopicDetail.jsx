@@ -1,160 +1,148 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import api from '../utils/api';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ArrowLeft, Plus, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, ChevronDown, ChevronUp, RefreshCw, Trash2, FileText } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { useQuestions, useCreateQuestion, useDeleteQuestion, useReviseQuestion } from '../hooks/useData';
 
 export default function TopicDetail() {
   const { id } = useParams();
-  const [questions, setQuestions] = useState([]);
+  const navigate = useNavigate();
+  
+  const { data: questions, isLoading } = useQuestions(id);
+  const createMutation = useCreateQuestion(id);
+  const deleteMutation = useDeleteQuestion(id);
+  const reviseMutation = useReviseQuestion(id);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [qText, setQText] = useState('');
   const [aText, setAText] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  useEffect(() => {
-    loadQuestions();
-  }, [id]);
-
-  const loadQuestions = async () => {
-    try {
-      const res = await api.get(`/topics/${id}/questions`);
-      setQuestions(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    try {
-      await api.post(`/topics/${id}/questions`, { question_text: qText, answer_text: aText });
-      setQText('');
-      setAText('');
-      setIsFormOpen(false);
-      loadQuestions();
-    } catch (error) {
-      alert("Error adding question");
-    }
+    createMutation.mutate(
+      { question_text: qText, answer_text: aText },
+      {
+        onSuccess: () => {
+          setQText('');
+          setAText('');
+          setIsFormOpen(false);
+        }
+      }
+    );
   };
 
-  const handleRevision = async (qid, e) => {
-    e.stopPropagation(); // Prevent toggling accordion
-    try {
-      await api.post(`/questions/${qid}/revise`);
-      setQuestions(prev => prev.map(q => 
-        q.id === qid ? { ...q, revision_count: q.revision_count + 1 } : q
-      ));
-    } catch (error) {
-      console.error(error);
-    }
+  const handleRevision = (qid, e) => {
+    e.stopPropagation();
+    reviseMutation.mutate(qid);
   };
 
-  const handleDelete = async (qid) => {
-    if(!confirm("Delete question?")) return;
-    try {
-      await api.delete(`/questions/${qid}`);
-      setQuestions(prev => prev.filter(q => q.id !== qid));
-    } catch (error) {
-      console.error(error);
-    }
+  const handleDelete = (qid) => {
+    if(!window.confirm("Delete this question?")) return;
+    deleteMutation.mutate(qid);
   };
+
+  if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 min-h-screen pb-20">
-      <div className="mb-8 flex items-center justify-between sticky top-0 bg-slate-50 py-4 z-20">
-        <Link to="/" className="flex items-center text-slate-500 hover:text-indigo-600 transition font-medium">
-          <ArrowLeft size={20} className="mr-2" /> Back to Topics
-        </Link>
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-8 flex items-center justify-between">
         <button 
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          className="bg-indigo-600 text-white px-5 py-2.5 rounded-full flex items-center shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 transition transform hover:-translate-y-0.5 cursor-pointer"
+          onClick={() => navigate('/')}
+          className="flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors font-medium text-sm group"
         >
-          <Plus size={20} className="mr-2" /> Add Question
+          <div className="p-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mr-2 group-hover:border-slate-300 dark:group-hover:border-slate-500 transition-colors">
+            <ArrowLeft size={16} />
+          </div>
+          Back to Library
         </button>
       </div>
 
-      {/* Add Question Form */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Questions & Notes</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">{questions?.length || 0} items in this collection</p>
+        </div>
+        <button 
+          onClick={() => setIsFormOpen(true)}
+          className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm cursor-pointer"
+        >
+          <Plus size={18} className="mr-2" />
+          Add Question
+        </button>
+      </div>
+
       {isFormOpen && (
-        <div className="bg-white p-6 rounded-2xl shadow-xl border border-indigo-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
-          <h3 className="font-bold text-lg mb-4 text-slate-800">New Question</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-slate-600 mb-1">Question</label>
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-indigo-100 dark:border-indigo-900/50 mb-8 overflow-hidden animate-in slide-in-from-top-4 duration-300">
+          <div className="px-6 py-4 bg-indigo-50/50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-900/50">
+             <h3 className="font-semibold text-indigo-900 dark:text-indigo-300">New Entry</h3>
+          </div>
+          <form onSubmit={handleSubmit} className="p-6">
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Question</label>
               <input 
-                className="w-full border border-slate-300 p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
+                autoFocus
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 value={qText} 
                 onChange={e => setQText(e.target.value)} 
                 required 
               />
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-slate-600 mb-1">Answer (Markdown Supported)</label>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Answer <span className="text-slate-400 font-normal ml-1">(Markdown supported)</span>
+              </label>
               <textarea 
-                className="w-full border border-slate-300 p-3 rounded-lg h-40 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white px-4 py-3 rounded-lg h-48 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-y"
                 value={aText} 
                 onChange={e => setAText(e.target.value)}
-                placeholder="## Use Markdown here..."
+                placeholder="# Key Points..."
                 required 
               />
             </div>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setIsFormOpen(false)} className="text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer">Cancel</button>
-              <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition cursor-pointer">Save Question</button>
+            <div className="flex justify-end gap-3 pt-2 border-t border-slate-50 dark:border-slate-800">
+              <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">Cancel</button>
+              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer">Save Entry</button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Questions List */}
       <div className="space-y-4">
-        {questions.length === 0 && (
-          <div className="text-center text-slate-400 py-16 bg-white rounded-2xl border border-dashed border-slate-300">
-            <p>No questions here yet.</p>
-            <p className="text-sm">Click "Add Question" to start building your knowledge base.</p>
-          </div>
-        )}
-
-        {questions.map((q) => (
-          <div key={q.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition">
-            
-            {/* Header */}
+        {questions?.map((q) => (
+          <div key={q.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
             <div 
-              className="p-5 flex items-center justify-between cursor-pointer bg-slate-50/50 hover:bg-white transition select-none"
+              className="px-6 py-5 flex items-start justify-between cursor-pointer group bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors select-none"
               onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
             >
-              <h3 className="font-semibold text-slate-800 text-lg flex-1 pr-4">{q.question_text}</h3>
-              <div className="flex items-center gap-4">
+              <h3 className="flex-1 pr-4 text-base font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
+                  {q.question_text}
+              </h3>
+              <div className="flex items-center gap-4 shrink-0 mt-0.5">
                 <div 
-                  className="flex items-center text-xs font-medium text-slate-600 bg-white px-2.5 py-1 rounded-full border border-slate-200 shadow-sm"
-                  title="Times Revised"
+                  className="hidden sm:flex items-center text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700"
                 >
-                  <RefreshCw size={12} className="mr-1.5 text-indigo-500" />
+                  <RefreshCw size={12} className="mr-1.5 text-slate-400 dark:text-slate-500" />
                   {q.revision_count}
                 </div>
-                {expandedId === q.id ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                <div className="text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400">
+                    {expandedId === q.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
               </div>
             </div>
 
-            {/* Answer (Accordion) */}
             {expandedId === q.id && (
-              <div className="p-6 border-t border-slate-100 bg-white animate-in slide-in-from-top-2 duration-200">
-                <article className="prose prose-slate prose-sm max-w-none prose-headings:text-indigo-900 prose-a:text-indigo-600">
+              <div className="px-8 pb-8 pt-2 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 animate-in slide-in-from-top-1 duration-200">
+                <article className="prose prose-slate dark:prose-invert prose-sm max-w-none prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
                   <ReactMarkdown>{q.answer_text}</ReactMarkdown>
                 </article>
                 
-                <div className="mt-8 pt-4 border-t border-slate-50 flex justify-between items-center">
-                  <button 
-                    onClick={() => handleDelete(q.id)}
-                    className="text-red-400 hover:text-red-600 flex items-center text-sm transition cursor-pointer"
-                  >
-                    <Trash2 size={16} className="mr-1"/> Delete
+                <div className="mt-8 pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-end items-center gap-3">
+                  <button onClick={() => handleDelete(q.id)} className="flex items-center text-sm text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-3 py-1.5 cursor-pointer">
+                    <Trash2 size={16} className="mr-1.5"/> Delete
                   </button>
-
-                  <button 
-                    onClick={(e) => handleRevision(q.id, e)}
-                    className="flex items-center bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100 hover:shadow-sm transition cursor-pointer"
-                  >
+                  <button onClick={(e) => handleRevision(q.id, e)} className="flex items-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer">
                     <RefreshCw size={16} className="mr-2" /> Mark as Revised
                   </button>
                 </div>
